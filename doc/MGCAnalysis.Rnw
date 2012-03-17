@@ -1,0 +1,367 @@
+\documentclass[]{article} 
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx} \usepackage{Sweave} \usepackage{hyperref}
+
+\title{Male gain curve analyses}
+% \author{Matthew B. Routley}
+% \date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}\label{sec:introduction}
+Gain curves describe the relationship between the allocation of resources to a function and the fitness benefits returned by this allocation. Although gain curves can take many different forms, in general they are characterized by power laws of the form $y=a x^{b}$. Here we present the results of two experiments that quantify the male gain curve for canola.
+
+\section{Array-level gain curve}\label{sec:gain_curve}
+
+In this experiment we quantified total pollen deposition in arrays with different anther numbers and inflorescence sizes.
+
+<<setup, echo=FALSE, results=hide>>=
+# ==========
+# = Title: Analysis of the canola male gain curve data =
+# = Author: Matthew Routley - matthew.routley@gmail.com =
+# ==========
+library(MASS)
+base <- "/Users/mroutley/Documents/MaleGainCurve/" # Change as appropriate
+# ======================================
+# = Connect to server and extract data =
+# ======================================
+library(RSQLite)
+driver <- dbDriver("SQLite")
+connection <- dbConnect(driver, dbname = paste(base, "db/MGCData.db", sep=""))
+pollenReceipt <- dbGetQuery(connection, statement = "SELECT flower.array_id, array.anther_number, array.flower_number, flower.plant_number, array.replicate, flower.position, flower.stigma_pollen FROM flower, array WHERE flower.array_id = array.array_id")
+pollenRemaining <- dbGetQuery(connection, statement = "SELECT pollenRemaining.array_id, array.anther_number, array.flower_number, pollenRemaining.plant_number, array.replicate, pollenRemaining.anther_pollen FROM pollenRemaining, array WHERE pollenRemaining.array_id = array.array_id")
+pollinators <- dbGetQuery(connection, statement = "SELECT pollinators.array_id, array.anther_number, array.flower_number, pollinators.plant_number, array.replicate, pollinators.flower_visits FROM pollinators, array WHERE pollinators.array_id = array.array_id")
+selfing <- dbGetQuery(connection, statement = "SELECT selfing.array_id, array.anther_number, array.flower_number, selfing.gus_pollen FROM array, selfing WHERE array.array_id = selfing.array_id")
+dbDisconnect(connection)
+dbUnloadDriver(driver)
+rm(driver)
+rm(connection)
+detach("package:RSQLite")
+# ==================
+# = Summarize data
+# ==================
+merged.data <- merge(pollenReceipt, pollenRemaining, all.x=TRUE, sort=TRUE)
+merged.data <- merge(merged.data, pollinators, all.x=TRUE, sort=TRUE)
+# merged.data <- merge(merged.data, selfing, all.x=TRUE, sort=TRUE)
+rm(pollenReceipt, pollenRemaining, pollinators)
+# Modify classes of variables
+merged.data <- transform(merged.data, array_id = as.factor(merged.data$array_id), plant_number = as.factor(merged.data$plant_number), anther_number = as.integer(merged.data$anther_number), flower_number = as.integer(merged.data$flower_number), position = as.factor(merged.data$position))
+merged.data$anther_pollen[merged.data$position == "top"] <- NA
+merged.data$flower_visits[merged.data$position == "top"] <- NA
+attach(merged.data)
+# Summarize export
+merged.export.mean <- aggregate(merged.data[,c(7)], by=list(array=array_id, anthers=anther_number, flowers=flower_number, replicate=replicate), mean, na.rm = TRUE)
+merged.export.se <- aggregate(merged.data[,c(7)], by=list(array=array_id, anthers=anther_number, flowers=flower_number, replicate=replicate), function(x) sqrt(var(x, na.rm = TRUE)/length(x)))
+merged.summary <- cbind(merged.export.mean, merged.export.se[,5])
+names(merged.summary)[5:6] <- c("meanStigmaPollen", "seStigmaPollen")
+# Summarize remaining
+merged.remaining.mean <- aggregate(merged.data[,c(8)], by=list(array=array_id, anthers=anther_number, flowers=flower_number, replicate=replicate), mean, na.rm = TRUE)
+merged.remaining.se <- aggregate(merged.data[,c(8)], by=list(array=array_id, anthers=anther_number, flowers=flower_number, replicate=replicate), function(x) sqrt(var(x, na.rm = TRUE)/length(x)))
+# Summarize visits
+merged.flowerVisits.mean <- aggregate(merged.data[,c(9)], by=list(array=array_id, anthers=anther_number, flowers=flower_number, replicate=replicate), mean, na.rm = TRUE)
+merged.flowerVisits.se <- aggregate(merged.data[,c(9)], by=list(array=array_id, anthers=anther_number, flowers=flower_number, replicate=replicate), function(x) sqrt(var(x, na.rm = TRUE)/length(x)))
+# Combine to merged.summary
+merged.summary <- cbind(merged.summary, merged.remaining.mean[,5], merged.flowerVisits.se[,5], merged.flowerVisits.mean[,5], merged.remaining.se[,5])
+names(merged.summary)[7:10] <- c("meanAntherPollen", "seAntherPollen", "meanFlowerVisits", "seFlowerVisits")
+merged.summary$selfing <- NA
+for(array in selfing$array_id) {
+	merged.summary$selfing[array] <- selfing$gus_pollen[selfing$array==array]
+}
+rm(merged.export.mean, merged.export.se, merged.remaining.mean, merged.remaining.se, merged.flowerVisits.mean, merged.flowerVisits.se, selfing, array)
+detach(merged.data)
+rm(merged.data)
+merged.summary <- transform(merged.summary, anthers = as.integer(merged.summary$anthers), flowers = as.integer(merged.summary$flowers))
+# ===========================
+# = Calculate export values =
+# ===========================
+antherPollen <- 13000
+antherNumber <- 30
+attach(merged.summary)
+merged.summary$arrayReceipt <- meanStigmaPollen * flowers * antherNumber / anthers
+detach(merged.summary)
+attach(merged.summary)
+merged.summary$probExport <- arrayReceipt / (antherPollen * antherNumber * flowers)
+merged.summary$arrayRemoval <- (antherPollen - meanAntherPollen) * flowers * antherNumber / anthers
+detach(merged.summary)
+attach(merged.summary)
+merged.summary$probRemoval <- arrayRemoval / (antherPollen * antherNumber * flowers)
+rm(antherPollen, antherNumber)
+detach(merged.summary)
+badArrays <- c(34, 33)
+arrayData <- merged.summary[-badArrays, ]
+rm(merged.summary, badArrays)
+attach(arrayData)
+@ 
+
+\subsection{The data}\label{sub:the_data}
+
+Figure \ref{fig:gaincurve} plots the probability that an individual pollen grain reaches a stigma for different anther and flower numbers.
+
+\begin{figure*}
+<<fig=true,echo=false, results=hide>>=
+pointType <- c(21, 25, 23)
+pointColour <- c("white", "black", "red")
+lineType <- c("dashed", "dotdash", "solid")
+legendLabels <- c("One flower", "Three flowers", "Five flowers")
+attach(arrayData)
+plot(anthers, probExport, type="n", xlab="Anther number", ylab="Probability of export", axes=FALSE, ylim=range(0, 0.03))
+axis(1)
+axis(2)
+points(anthers, probExport, pch=pointType[flowers], bg=pointColour[replicate])
+for (flowerNumber in 1:3) {
+	lines(1:6, tapply(probExport, list(flowers, anthers), mean)[flowerNumber,], lty=lineType[flowerNumber])
+}
+rm(flowerNumber)
+legend(4, 0.02, legendLabels, pch=pointType, pt.bg="black", bty="n", pt.cex=1.5)
+@
+\caption{The gain curve for canola based on an array-level analysis of pollen deposition.}
+  \label{fig:gaincurve}
+\end{figure*}
+
+\subsection{Linear models}\label{sub:models}
+We start with a simple, additive linear model of the probability of pollen export for anther number and inflorescence size.
+<<add>>=
+export.add <- lm(probExport ~ anthers + flowers, data=arrayData)
+summary(export.add)
+@
+
+Anthers are a significant effect in this additive model, but an interaction model may be a better explanation for these data.
+
+<<int>>=
+export.int <- update(export.add, . ~ anthers*flowers)
+summary(export.int)
+anova(export.int, export.add)
+@ 
+
+There is no evidence for a significant interaction between anther number and inflorescence size for this linear approach. However, if we consider pollinator behaviour by including the number of flowers visited and amount of pollen transferred, we obtain slightly different conclusions.
+
+<<full>>=
+exp.stp <- stepAIC(export.int, scope=list(upper= ~ anthers*flowers*meanFlowerVisits*arrayRemoval, lower = ~1))
+dropterm(exp.stp, test="F")
+exp.aov <- aov(probExport ~ anthers*flowers + arrayRemoval, data=arrayData)
+summary(exp.aov)
+coef(exp.aov)
+@
+
+We find that the total amount of pollen removed in the array is an important predictor of the probability of pollen export. Furthermore, with this addition, the interaction between anther number and inflorescence size becomes marginally significant.
+
+Another approach is to log transform the probability of pollen export to investigate non-linear changes with anther number.
+
+<<log>>=
+export.log <- update(export.int, log(probExport) ~ .)
+summary(export.log)
+@
+
+\subsection{Selfing}\label{sec:selfing}
+
+The count of transgenic pollen on stigmas provides an estimate of the total amount of self pollen deposited within plants.
+<<selfing>>=
+self.lm <- lm(selfing ~ anthers*flowers, data=arrayData)
+summary(self.lm)
+@
+
+These results suggest some influence of anther number and inflorescence size on selfing. However, the plot of these data (Figure \ref{fig:self}) suggests more analyses are required.
+
+\begin{figure*}
+<<selfplot, fig=true, echo=false>>=
+with(arrayData, interaction.plot(anthers, flowers, selfing, fun = function(x) mean(x, na.rm=TRUE), ylab="Mean self-pollen deposition", trace.label="Flower number"))
+detach(arrayData)
+@
+\caption{Self pollen deposition.}
+\label{fig:self}
+\end{figure*}
+
+\subsection{Non-linear regression}\label{sub:non_linear_regression}
+Typically, gain curves are analysed with power-law distributions.
+
+<<nls, echo=false, results=hide>>=
+# =========================
+# = Non-linear regression
+# =========================
+attach(arrayData)
+exp.start <- c(a=1, b=0.5)
+exp.nl.1 <- nls(I(probExport/anthers) ~ a*anthers^(b-1), data=arrayData[flowers==1, ], start=exp.start, trace=TRUE)
+exp.nl.3 <- nls(I(probExport/anthers) ~ a*anthers^(b-1), data=arrayData[flowers==2, ], start=exp.start, trace=TRUE)
+exp.nl.5 <- nls(I(probExport/anthers) ~ a*anthers^(b-1), data=arrayData[flowers==3, ], start=exp.start, trace=TRUE)
+newdata <- data.frame(anthers=1:6)
+predict.1 <- predict(exp.nl.1, newdata=newdata)
+predict.3 <- predict(exp.nl.3, newdata=newdata)
+predict.5 <- predict(exp.nl.5, newdata=newdata)
+predicted <- data.frame(expand.grid(anthers=1:6, flowers=1:3), export=c(predict.1, predict.3, predict.5))
+detach(arrayData)
+@
+
+<<nls2, echo=false>>=
+summary(exp.nl.1)
+summary(exp.nl.3)
+summary(exp.nl.5)
+@
+
+With the exception of $b$ for three-flowered plants, the estimate of each parameter is significantly different from zero. However, plotting the predicted and observed values (Figure \ref{fig:nls}) shows that these power-law distributions are significantly underfitting the values for large anther numbers.
+
+\begin{figure*}
+<<predict, fig=true, echo=false>>=
+# ========
+# = Plot
+# ========
+pointType <- c(21, 25, 23)
+pointColour <- c("white", "black", "red")
+lineType <- c("dashed", "dotdash", "solid")
+legendLabels <- c("One flower", "Three flowers", "Five flowers")
+attach(arrayData, warn.conflicts = FALSE)
+plot(anthers, probExport, type="n", xlab="Anther number", ylab="Probability of export", axes=FALSE, ylim=range(0, 0.03))
+axis(1)
+axis(2)
+points(anthers, probExport, pch=pointType[flowers], bg=pointColour[replicate])
+for (flowerNumber in 1:3) {
+	lines(1:6, tapply(probExport, list(flowers, anthers), mean)[flowerNumber,], lty=lineType[flowerNumber])
+}
+legend(4, 0.02, legendLabels, pch=pointType, pt.bg="black", bty="n", pt.cex=1.5)
+detach(arrayData)
+attach(predicted, warn.conflicts = FALSE)
+points(anthers, export, bg="blue", pch=pointType[flowers])
+@
+\caption{Predicted values from the non-linear regression.}
+  \label{fig:nls}
+\end{figure*}
+
+\section{Pollen shadow}\label{sec:pollen_shadow}
+
+In the second experiment, a focal plant with transgenic pollen was surrounded by concentric squares of wild-type plants. Pollen export from the focal plant was estimated by counting transgenic pollen on wild-type stigmas.
+
+<<setup, echo=false,results=hide>>=
+library(MASS)
+# =====================================
+# = Extract data from SQLite database =
+# =====================================
+base <- "/Users/mroutley/Documents/MaleGainCurve/" # Change as appropriate
+library(RSQLite)
+driver <- dbDriver("SQLite")
+connection <- dbConnect(driver, dbname = paste(base, "db/MGCPollenShadowData.db", sep=""))
+selfing <- dbGetQuery(connection, statement = "SELECT gus_stigmas.id AS array_id, arrays.donor_anthers, arrays.recipient_anthers, gus_stigmas.gus_pollen, gus_stigmas.wt_pollen FROM gus_stigmas, arrays WHERE gus_stigmas.id = arrays.id")
+outcrossing <- dbGetQuery(connection, statement = "SELECT wt_stigmas.array_id, arrays.donor_anthers, arrays.recipient_anthers, wt_stigmas.gus_pollen, wt_stigmas.position FROM wt_stigmas, arrays WHERE wt_stigmas.array_id = arrays.id")
+visits <- dbGetQuery(connection, statement = "SELECT visits.array_id, arrays.donor_anthers, arrays.recipient_anthers, visits.plant_id, visits.bout, visits.arrive, visits.depart FROM visits, arrays WHERE visits.array_id = arrays.id")
+dbDisconnect(connection)
+dbUnloadDriver(driver)
+rm(connection, driver)
+detach("package:RSQLite")
+# =========================
+# = Declare global values =
+# =========================
+antherPollen <- 13000
+plotSymbols <- c(24, 25) #Triangles up & down
+lineTypes <- c("dotted", "dashed")
+@
+
+We'll start with a look at the pollinator visits in each array.
+
+<<visits, echo=false>>=
+# ==================
+# = Analyse visits =
+# ==================
+visits$donor_anthers <- as.factor(visits$donor_anthers)
+visits$recipient_anthers <- as.factor(visits$recipient_anthers)
+visits$duration <- strptime(visits$depart, format="%H:%M:%S")-strptime(visits$arrive, format="%H:%M:%S")
+duration.mean <- tapply(visits$duration, visits$array_id, mean, na.rm = TRUE)
+duration.total <- tapply(as.integer(visits$duration), visits$array_id, sum, na.rm = TRUE)
+focal.visits <- tapply(as.integer(visits$duration[visits$plant_id==25]), visits$array_id[visits$plant_id==25], sum, na.rm = TRUE) # Plant 25 is the focal plant
+attach(visits)
+visit.lm <- lm(as.integer(duration) ~ array_id/(as.integer(donor_anthers) + as.integer(recipient_anthers)), data=visits)
+summary(visit.lm)
+detach(visits)
+@
+
+This provides marginal evidence that pollinators respond to the number of donor anthers.
+
+\subsection{Selfing}\label{sub:selfing}
+
+As with the gain curve experiment, we can look at self-pollen deposition for different anther numbers.
+
+<<selfing, echo=false>>=
+attach(selfing)
+withinselfing.lm <- lm(gus_pollen ~ donor_anthers, data=selfing)
+pollencorrelation.lm <- lm(gus_pollen ~ wt_pollen, data=selfing)
+self.lm <- lm(gus_pollen ~ donor_anthers + recipient_anthers, data=selfing)
+summary(withinselfing.lm)
+summary(pollencorrelation.lm)
+summary(self.lm)
+detach(selfing)
+@
+
+We find no evidence that selfing is correlated with anther number or pollen export.
+
+<<antherselfing, fig=true,echo=false>>=
+attach(selfing, warn.conflicts = FALSE)
+plot(donor_anthers, gus_pollen, pch=ifelse(donor_anthers > recipient_anthers, plotSymbols[2], plotSymbols[1]))
+detach(selfing)
+@
+
+\subsection{Distance}\label{sub:distance}
+
+<<outcross, echo=false,results=hide>>=
+outcrossing.mean <- tapply(outcrossing$gus_pollen, outcrossing$array_id, mean, na.rm = TRUE) # Average pollen deposition/stigma
+outcrossing.se <- tapply(outcrossing$gus_pollen, outcrossing$array_id, function(x) sqrt(var(x, na.rm = TRUE)/length(x)))
+pollenCount <- tapply(outcrossing$gus_pollen, outcrossing$array_id, sum, na.rm=TRUE) # Total pollen export
+# ============================
+# = Array position variables =
+# ============================
+inner <- c(9, 10, 15, 16)
+middle <- c(5:7, 12, 13, 18:20)
+outer <- c(1:4, 8, 11, 14, 17, 21:24)
+outcrossing$distance[is.element(outcrossing$position, inner)] <- 1
+outcrossing$distance[is.element(outcrossing$position, middle)] <- 2
+outcrossing$distance[is.element(outcrossing$position, outer)] <- 3
+outcrossing$distance[outcrossing$gus_pollen == 0] <- NA
+@
+
+A plot of the distance pollen travels for each number of donor anthers shows significant scatter, but perhaps an interaction.
+
+<<distance,fig=true,echo=false>>=
+print(xyplot(outcrossing$gus_pollen ~ outcrossing$distance|outcrossing$donor_anthers))
+@
+
+<<distance, echo=false>>=
+distance.lm <- lm(distance ~ donor_anthers*recipient_anthers, data=outcrossing)
+summary(distance.lm)
+@
+
+<<arraysummary,echo=false,results=hide>>=
+array.summary <- data.frame(array_id = 1:26, donor_anthers = selfing$donor_anthers, recipient_anthers = selfing$recipient_anthers, outcrossing.mean = outcrossing.mean, outcrossing.se = outcrossing.se, pollenCount=pollenCount)
+array.summary$diversity <- tapply(outcrossing$position[outcrossing$gus_pollen > 0], outcrossing$array_id[outcrossing$gus_pollen > 0], function(x) length(unique(x)))
+array.summary <- transform(array.summary, pollen_export = outcrossing.mean/(antherPollen * array.summary$donor_anthers), background = as.factor(ifelse(array.summary$donor_anthers > array.summary$recipient_anthers, "smaller", "larger")), self_pollen = selfing$gus_pollen, pollen_import = selfing$wt_pollen, distance = tapply(outcrossing$distance, outcrossing$array_id, mean, na.rm = TRUE), mean_visit = duration.mean, total_visit = duration.total, focal_visit = focal.visits)
+array.summary <- array.summary[array.summary$array_id!=8 & array.summary$array_id!=6, ]
+rm(outcrossing.mean, outcrossing.se, pollenCount, inner, middle, outer)
+@
+
+<<pollenshadow, fig=true,echo=false>>=
+attach(array.summary, warn.conflicts = FALSE)
+plot(donor_anthers, pollen_export, pch=plotSymbols[background], xlab="Donor anthers", ylab="Probabilty of pollen export", axes=FALSE, col=ifelse(array_id<25, "black", "red"))
+axis(1, at=2:5, labels=2:5)
+axis(2)
+conditions <- c(donor_anthers > recipient_anthers)
+lines(2:5, tapply(pollen_export[conditions], donor_anthers[conditions], mean), lty=lineTypes[1])
+conditions <- c(donor_anthers < recipient_anthers)
+lines(2:5, tapply(pollen_export[conditions], donor_anthers[conditions], mean), lty=lineTypes[2])
+legend(4, 0.00020, c("Larger background", "Smaller background"), pch=plotSymbols)
+text(donor_anthers+0.1, pollen_export, labels=as.character(array_id))
+detach(array.summary)
+@
+
+<<shadowanalysis,echo=false>>=
+attach(array.summary, warn.conflicts = FALSE)
+export.add <- lm(pollen_export ~ donor_anthers + background, data=array.summary)
+export.int <- update(export.add, . ~ donor_anthers*background)
+exp.stp <- stepAIC(export.int, scope=list(upper= ~ donor_anthers*background*mean_visit*distance, lower = ~1))
+dropterm(exp.stp, test="F")
+exp.aov <- aov(pollen_export ~ donor_anthers + mean_visit, data=array.summary)
+summary(exp.aov)
+coef(exp.aov)
+summary(aov(pollen_export ~ donor_anthers*background + mean_visit, data=array.summary))
+detach(array.summary)
+@
+
+So, we find that pollen export declines with the number of donor anthers and increases with pollinator visits.
+
+\end{document}
