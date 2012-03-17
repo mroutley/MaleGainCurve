@@ -1,0 +1,46 @@
+These files relate to the Male Gain Curve experiments from the summers of 2004 and 2005.
+
+analysis
+========
+
+* MGCAnalysis.R - Statistical and graphical analysis extracted from doc/MGCAnalysis.Rnw
+* MGCExperimentalDesign.R - Generates randomized experimental runs for male gain curve experiments
+* MGCPlots.R - Code for "Quantifying the male gain curve" seminar; Generates example & empirical gain curves
+* MGCPollenShadowExperimentalDesign.R - Randomized designs for the male gain curve, pollen shadow experiment
+
+data
+====
+* MGCAntherCounts.txt - Anther pollen from array plants after visitation. Also contained within MGCData.db
+* MGCFruits.txt - Seed set from array plants after visitation. Also contained within MGCData.db
+* MGCHandVsMachineHST.zip - Data for comparing hand to machine counts of pollen. See fig/MGCHandvsMachinePollenCounts.pdf
+* MGCPollenProduction.zip - HST files from pollen counter.
+* MGCPollenShadowHST.zip - HST files from pollen counter.
+* MGCPollinatorObservations.txt - Time series of pollinator visitation in arrays. Summarized as the number of flower visits in MGCData.db
+* MGCData.txt - SQL statements from MGCData.db
+
+db
+==
+* MGCData.db - Database for the gain curve experiment
+* MGCPollenShadowData.db - Database for the pollen shadow experiment
+
+doc
+===
+* MGCAnalysis.Rnw - Sweave file for analyzing both experiments [Sweave](http://www.ci.tuwien.ac.at/~leisch/Sweave/Sweave-Rnews-2002-3.pdf)
+* MGCAnalysis.pdf - The output of MGCAnalysis.Rnw
+* MGCMethods.pdf - An overview of the experimental methods
+* Male Gain Curve Presentation.pdf - A pdf of the slides from MaleGainCurve.key
+* MaleGainCurve.key.zip - Presentation of the gain curve experiment to the Ecology Retreat, Department of Biological Sciences, University of Calgary, October 2004
+
+fig
+===
+* MGCAntherRemoval.pdf - Diagram of anther removal for pollen shadow experiment taken from MGCArrayConstruction.graffle
+* MGCArrayConstruction.graffle - Diagrams of anther removal and array construction for pollen shadow experiment
+* MGCArrayConstruction.pdf - Diagrams of array construction for pollen shadow experiment taken from MGCArrayConstruction.graffle [Graffle](http://www.omnigroup.com/applications/omnigraffle/)
+* MGCHandvsMachinePollenCounts.pdf - Plots from MGCHandVsMachineHST.zip
+
+utils
+=====
+
+* MGCMakePollenCountInputFile.pl - Perl script for creating pollen count input files to be processed by MGCPollenCount.pl
+* MGCPollenCount.pl - Converts hst files into text files for pollen counts
+* MGCPollenCountVialWeights.txt - Supporting file for MGCPollenCount.pl with a list of vial weights
